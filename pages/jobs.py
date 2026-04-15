@@ -112,7 +112,7 @@ class JobsPage(ctk.CTkFrame):
         jobs = self.db.get_jobs()
 
         for job in jobs:
-            job_id, company, role, status = job
+            job_id, company, role, status, created_at = job
 
             card = ctk.CTkFrame(self.job_list_frame, fg_color=self.card_color, corner_radius=10)
             card.pack(fill="x", pady=5)

@@ -29,7 +29,6 @@ class VideosPage(ctk.CTkFrame):
         self.entry_topic = ctk.CTkEntry(row1, placeholder_text="Video Topic / Game Name", width=300)
         self.entry_topic.pack(side="left", padx=(0, 10))
 
-        # The Dropdown now has a command to toggle inputs!
         self.menu_type = ctk.CTkOptionMenu(row1, values=["Single Game", "Multi-Game"],
                                            fg_color="#333333", button_color=self.neon_green,
                                            button_hover_color=self.dark_green, text_color="white",

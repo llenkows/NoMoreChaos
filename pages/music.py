@@ -1,4 +1,5 @@
 import customtkinter as ctk
+import os
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 import math
@@ -6,8 +7,8 @@ import requests
 from io import BytesIO
 from PIL import Image
 
-SPOTIPY_CLIENT_ID = 'YOUR_CLIENT_ID_HERE'
-SPOTIPY_CLIENT_SECRET = 'YOUR_CLIENT_SECRET_HERE'
+SPOTIPY_CLIENT_ID = os.getenv('SPOTIPY_CLIENT_ID')
+SPOTIPY_CLIENT_SECRET = os.getenv('SPOTIPY_CLIENT_SECRET')
 
 
 class MusicPage(ctk.CTkFrame):
@@ -44,9 +45,7 @@ class MusicPage(ctk.CTkFrame):
         self.build_queue_tab()
         self.build_saved_tab()
 
-    # ==========================================
-    # 🔍 SEARCH TAB
-    # ==========================================
+    # SEARCH TAB
     def build_search_tab(self):
         search_frame = ctk.CTkFrame(self.tab_search, fg_color="transparent")
         search_frame.pack(fill="x", pady=10)
@@ -100,9 +99,7 @@ class MusicPage(ctk.CTkFrame):
         btn_widget.configure(text="Added ✓", fg_color=self.dark_green, state="disabled")
         self.refresh_queue_list()
 
-    # ==========================================
-    # ⏳ QUEUE & RATE TAB
-    # ==========================================
+    # QUEUE & RATE TAB
     def build_queue_tab(self):
         content_frame = ctk.CTkFrame(self.tab_queue, fg_color="transparent")
         content_frame.pack(fill="both", expand=True, pady=10)
@@ -141,7 +138,6 @@ class MusicPage(ctk.CTkFrame):
             btn_rate.pack(side="right", padx=5)
 
     def load_album_for_rating(self, album_id, name, artist, img_url):
-        # We now store img_url so save_rating can access it
         self.current_album = {'id': album_id, 'name': name, 'artist': artist, 'img_url': img_url}
         self.track_items = []
 
@@ -231,9 +227,7 @@ class MusicPage(ctk.CTkFrame):
         self.refresh_queue_list()
         self.refresh_saved_list()
 
-    # ==========================================
-    # 💾 SAVED TAB & EDITING
-    # ==========================================
+    # SAVED TAB & EDITING
     def build_saved_tab(self):
         self.saved_list = ctk.CTkScrollableFrame(self.tab_saved, fg_color="transparent")
         self.saved_list.pack(fill="both", expand=True)
@@ -248,7 +242,7 @@ class MusicPage(ctk.CTkFrame):
             card = ctk.CTkFrame(self.saved_list, fg_color=self.card_color, corner_radius=10)
             card.pack(fill="x", pady=5)
 
-            # --- Cover Art ---
+            # Cover Art
             if img_url:
                 img_data = requests.get(img_url).content
                 img_item = Image.open(BytesIO(img_data))
@@ -256,12 +250,12 @@ class MusicPage(ctk.CTkFrame):
                 lbl_img = ctk.CTkLabel(card, text="", image=ctk_img)
                 lbl_img.pack(side="left", padx=(10, 5), pady=10)
 
-            # --- Details ---
+            # Details
             lbl_info = ctk.CTkLabel(card, text=f"[{score}/10] {title}\nby {artist}", font=("Arial", 16, "bold"),
                                     text_color="white", justify="left")
             lbl_info.pack(side="left", padx=15, pady=15)
 
-            # --- Controls ---
+            # Controls
             btn_del = ctk.CTkButton(card, text="X", width=30, fg_color="#FF3333", hover_color="#990000",
                                     command=lambda i=a_id: [self.db.delete_album(i), self.refresh_saved_list()])
             btn_del.pack(side="right", padx=(5, 15))

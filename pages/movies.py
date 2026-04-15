@@ -1,4 +1,5 @@
 import customtkinter as ctk
+import os
 from customtkinter import filedialog
 import requests
 import threading
@@ -7,8 +8,7 @@ from io import BytesIO
 from PIL import Image
 import webbrowser
 
-TMDB_API_KEY = '7f2d94ac8dc4365b1fecb2e1cf16dcd8'
-
+TMDB_API_KEY = os.getenv('TMDB_API_KEY')
 
 class MoviesPage(ctk.CTkFrame):
     def __init__(self, parent, db_manager, **kwargs):
@@ -26,7 +26,7 @@ class MoviesPage(ctk.CTkFrame):
         title = ctk.CTkLabel(self, text="Movie Watchlist", font=("Arial", 28, "bold"), text_color="white")
         title.pack(anchor="w", pady=(0, 10))
 
-        # --- IMPORT ROW ---
+        # IMPORT ROW
         sync_frame = ctk.CTkFrame(self, fg_color=self.card_color, corner_radius=10)
         sync_frame.pack(fill="x", pady=(0, 20), ipadx=10, ipady=10)
 
@@ -39,9 +39,14 @@ class MoviesPage(ctk.CTkFrame):
         self.lbl_status = ctk.CTkLabel(sync_frame, text="Click to update your local database.", text_color="#AAAAAA")
         self.lbl_status.pack(side="left", padx=15)
 
-        # --- ACTION BUTTONS ---
+        # ACTION BUTTONS
         action_frame = ctk.CTkFrame(self, fg_color="transparent")
         action_frame.pack(fill="x", pady=10)
+
+        btn_sticky = ctk.CTkButton(action_frame, text="📌 Today's Pick", fg_color=self.neon_green, text_color="black",
+                                   hover_color=self.dark_green,
+                                   font=("Arial", 16, "bold"), command=lambda: self.display_movie("sticky"))
+        btn_sticky.pack(side="left", expand=True, padx=5, ipady=10)
 
         btn_random = ctk.CTkButton(action_frame, text="🎲 Random Movie", fg_color="#333333", hover_color="#555555",
                                    font=("Arial", 16, "bold"), command=lambda: self.display_movie("random"))
@@ -55,7 +60,7 @@ class MoviesPage(ctk.CTkFrame):
                                     font=("Arial", 16, "bold"), command=lambda: self.display_movie("highest"))
         btn_highest.pack(side="left", expand=True, padx=5, ipady=10)
 
-        # --- DISPLAY AREA ---
+        # DISPLAY AREA
         self.display_frame = ctk.CTkFrame(self, fg_color=self.card_color, corner_radius=15)
         self.display_frame.pack(fill="both", expand=True, pady=20)
 
@@ -63,9 +68,7 @@ class MoviesPage(ctk.CTkFrame):
                                        text_color="#555555", font=("Arial", 18))
         self.lbl_poster.pack(pady=50)
 
-    # ==========================================
-    # 🔄 CSV IMPORT LOGIC
-    # ==========================================
+    # CSV IMPORT LOGIC
     def select_file_and_sync(self):
         # Open Windows File Picker
         file_path = filedialog.askopenfilename(
@@ -81,7 +84,7 @@ class MoviesPage(ctk.CTkFrame):
 
     def process_csv(self, file_path):
         try:
-            self.db.clear_movies()  # Clear the old database so we don't get duplicates
+            self.db.clear_movies()  # Clear the old database so no duplicates
             movies_found = 0
 
             # Read the CSV with UTF-8 encoding
@@ -103,7 +106,7 @@ class MoviesPage(ctk.CTkFrame):
                         "query": title,
                         "api_key": TMDB_API_KEY
                     }
-                    # Add year for extreme accuracy if the CSV provided it
+                    # Add year for accuracy if the CSV provided it
                     if year:
                         tmdb_params["primary_release_year"] = year
 
@@ -136,11 +139,14 @@ class MoviesPage(ctk.CTkFrame):
         finally:
             self.btn_import.configure(state="normal", text="Import Watchlist CSV")
 
-    # ==========================================
-    # 🎬 DISPLAY LOGIC
-    # ==========================================
+    # DISPLAY LOGIC
     def display_movie(self, criteria):
         movie = self.db.get_movie_by_criteria(criteria)
+        if criteria == "sticky":
+            movie = self.db.get_dashboard_movie()
+        else:
+            movie = self.db.get_movie_by_criteria(criteria)
+
         if not movie:
             self.lbl_poster.configure(text="No movies found. Please import your watchlist first.")
             return
@@ -155,7 +161,7 @@ class MoviesPage(ctk.CTkFrame):
         info_frame = ctk.CTkFrame(self.display_frame, fg_color="transparent")
         info_frame.pack(side="left", fill="both", expand=True, pady=30, padx=(0, 30))
 
-        # --- Load Poster ---
+        # Load Poster
         if poster_url:
             try:
                 img_data = requests.get(poster_url).content
@@ -183,13 +189,13 @@ class MoviesPage(ctk.CTkFrame):
         btn_watched.pack(anchor="w", pady=5)
 
     def mark_as_watched(self, slug, title):
-        # 1. Delete from the local database
+        # Delete from the local database
         self.db.delete_movie(slug)
 
-        # 2. Clear the screen
+        # Clear the screen
         for widget in self.display_frame.winfo_children(): widget.destroy()
 
-        # 3. Show a satisfying success message
+        # Show a satisfying success message
         self.lbl_poster = ctk.CTkLabel(self.display_frame, text=f"✅ '{title}' marked as watched and removed!",
                                        text_color=self.neon_green, font=("Arial", 20, "bold"))
         self.lbl_poster.pack(pady=50)
