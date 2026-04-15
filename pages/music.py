@@ -6,9 +6,6 @@ import requests
 from io import BytesIO
 from PIL import Image
 
-# ==========================================
-# 🛑 PASTE YOUR SPOTIFY KEYS HERE
-# ==========================================
 SPOTIPY_CLIENT_ID = 'YOUR_CLIENT_ID_HERE'
 SPOTIPY_CLIENT_SECRET = 'YOUR_CLIENT_SECRET_HERE'
 

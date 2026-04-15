@@ -3,6 +3,7 @@ from database import DatabaseManager
 from pages.jobs import JobsPage
 from pages.videos import VideosPage
 from pages.music import MusicPage
+from pages.movies import MoviesPage
 
 
 class ChaosApp(ctk.CTk):
@@ -36,6 +37,7 @@ class ChaosApp(ctk.CTk):
         self.btn_jobs = self.create_nav_btn("Job Applications", command=self.show_jobs_page)
         self.btn_videos = self.create_nav_btn("Video Ideas", command=self.show_videos_page)
         self.btn_music = self.create_nav_btn("Music", command=self.show_music_page)
+        self.btn_movies = self.create_nav_btn("Movies", command=self.show_movies_page)
 
         # --- MAIN CONTENT AREA ---
         self.main_content = ctk.CTkFrame(self, fg_color="transparent")
@@ -72,6 +74,11 @@ class ChaosApp(ctk.CTk):
     def show_music_page(self):
         self.clear_main_content()
         self.current_page = MusicPage(self.main_content, self.db)
+        self.current_page.pack(fill="both", expand=True)
+
+    def show_movies_page(self):
+        self.clear_main_content()
+        self.current_page = MoviesPage(self.main_content, self.db)
         self.current_page.pack(fill="both", expand=True)
 
 if __name__ == "__main__":

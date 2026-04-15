@@ -153,6 +153,25 @@ class DatabaseManager:
                                   TEXT
                               )''')
 
+            # --- MOVIES TABLE ---
+            cursor.execute('''CREATE TABLE IF NOT EXISTS movies
+                              (
+                                  slug
+                                  TEXT
+                                  PRIMARY
+                                  KEY,
+                                  title
+                                  TEXT,
+                                  runtime
+                                  INTEGER,
+                                  rating
+                                  REAL,
+                                  poster_url
+                                  TEXT,
+                                  letterboxd_url
+                                  TEXT
+                              )''')
+
             # --- SAFE MIGRATION FOR VIDEOS ---
             try:
                 cursor.execute("ALTER TABLE subtopics ADD COLUMN strength_score INTEGER DEFAULT 0")
@@ -347,4 +366,37 @@ class DatabaseManager:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM albums WHERE spotify_id = ?", (album_id,))
             cursor.execute("DELETE FROM tracks WHERE album_id = ?", (album_id,))
+            conn.commit()
+
+    # ==========================================
+    # 🍿 MOVIES FUNCTIONS
+    # ==========================================
+    def save_movie(self, slug, title, runtime, rating, poster_url, lbx_url):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''INSERT OR REPLACE INTO movies (slug, title, runtime, rating, poster_url, letterboxd_url) 
+                              VALUES (?, ?, ?, ?, ?, ?)''', (slug, title, runtime, rating, poster_url, lbx_url))
+            conn.commit()
+
+    def clear_movies(self):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM movies")
+            conn.commit()
+
+    def get_movie_by_criteria(self, criteria):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            if criteria == "random":
+                cursor.execute("SELECT * FROM movies ORDER BY RANDOM() LIMIT 1")
+            elif criteria == "shortest":
+                cursor.execute("SELECT * FROM movies WHERE runtime > 0 ORDER BY runtime ASC LIMIT 1")
+            elif criteria == "highest":
+                cursor.execute("SELECT * FROM movies ORDER BY rating DESC LIMIT 1")
+            return cursor.fetchone()
+
+    def delete_movie(self, slug):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM movies WHERE slug = ?", (slug,))
             conn.commit()
