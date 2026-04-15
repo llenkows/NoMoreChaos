@@ -75,9 +75,85 @@ class DatabaseManager:
                               ) REFERENCES videos
                               (
                                   id
-                              ))''')
+                              )
+                )''')
 
-            # --- SAFE MIGRATION: Add new columns to subtopics if they don't exist ---
+            # --- MUSIC TABLES (Updated with columns built-in for new databases) ---
+            cursor.execute('''CREATE TABLE IF NOT EXISTS albums
+                              (
+                                  spotify_id
+                                  TEXT
+                                  PRIMARY
+                                  KEY,
+                                  artist
+                                  TEXT,
+                                  title
+                                  TEXT,
+                                  average_score
+                                  REAL,
+                                  img_url
+                                  TEXT
+                                  DEFAULT
+                                  '',
+                                  created_at
+                                  DATETIME
+                                  DEFAULT
+                                  CURRENT_TIMESTAMP
+                              )''')
+
+            # --- SAFE MIGRATION FOR EXISTING DATABASES ---
+            try:
+                cursor.execute("ALTER TABLE albums ADD COLUMN img_url TEXT DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+
+            try:
+                # SQLite restricts CURRENT_TIMESTAMP in ALTER TABLE, so we add it empty
+                cursor.execute("ALTER TABLE albums ADD COLUMN created_at DATETIME")
+                # Then we fill the timestamp in for any existing albums manually
+                cursor.execute("UPDATE albums SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL")
+            except sqlite3.OperationalError:
+                pass  # Column already exists
+
+            cursor.execute('''CREATE TABLE IF NOT EXISTS tracks
+            (
+                id
+                TEXT
+                PRIMARY
+                KEY,
+                album_id
+                TEXT,
+                track_number
+                INTEGER,
+                name
+                TEXT,
+                score
+                INTEGER,
+                FOREIGN
+                KEY
+                              (
+                album_id
+                              ) REFERENCES albums
+                              (
+                                  spotify_id
+                              )
+                )''')
+
+            cursor.execute('''CREATE TABLE IF NOT EXISTS queued_albums
+                              (
+                                  spotify_id
+                                  TEXT
+                                  PRIMARY
+                                  KEY,
+                                  artist
+                                  TEXT,
+                                  title
+                                  TEXT,
+                                  img_url
+                                  TEXT
+                              )''')
+
+            # --- SAFE MIGRATION FOR VIDEOS ---
             try:
                 cursor.execute("ALTER TABLE subtopics ADD COLUMN strength_score INTEGER DEFAULT 0")
                 cursor.execute("ALTER TABLE subtopics ADD COLUMN time_to_beat TEXT DEFAULT ''")
@@ -204,4 +280,71 @@ class DatabaseManager:
                 is_ready = 1 if total == ready_count else 0
                 cursor.execute("UPDATE videos SET strength_score = ?, is_ready = ? WHERE id = ?",
                                (max_score, is_ready, video_id))
+            conn.commit()
+
+    # ==========================================
+    # 🎵 MUSIC FUNCTIONS
+    # ==========================================
+    def add_to_queue(self, spotify_id, artist, title, img_url):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''INSERT OR REPLACE INTO queued_albums (spotify_id, artist, title, img_url) 
+                              VALUES (?, ?, ?, ?)''', (spotify_id, artist, title, img_url))
+            conn.commit()
+
+    def get_queued_albums(self):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM queued_albums")
+            return cursor.fetchall()
+
+    def delete_from_queue(self, spotify_id):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM queued_albums WHERE spotify_id = ?", (spotify_id,))
+            conn.commit()
+
+    def save_album_rating(self, spotify_id, artist, title, img_url, average_score, tracks_data):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+
+            # Check if it exists so we can preserve the original created_at timestamp if we are just editing
+            cursor.execute("SELECT spotify_id FROM albums WHERE spotify_id = ?", (spotify_id,))
+            if cursor.fetchone():
+                cursor.execute('''UPDATE albums
+                                  SET artist=?,
+                                      title=?,
+                                      average_score=?,
+                                      img_url=?
+                                  WHERE spotify_id = ?''', (artist, title, average_score, img_url, spotify_id))
+            else:
+                cursor.execute('''INSERT INTO albums (spotify_id, artist, title, average_score, img_url)
+                                  VALUES (?, ?, ?, ?, ?)''', (spotify_id, artist, title, average_score, img_url))
+
+            for track in tracks_data:
+                cursor.execute('''INSERT OR REPLACE INTO tracks (id, album_id, track_number, name, score)
+                                  VALUES (?, ?, ?, ?, ?)''',
+                               (track['id'], spotify_id, track['track_number'], track['name'], track['score']))
+            conn.commit()
+
+    def get_rated_albums(self):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            # UPDATED: Sorting by the most recently added!
+            cursor.execute(
+                "SELECT spotify_id, artist, title, average_score, img_url FROM albums ORDER BY created_at DESC")
+            return cursor.fetchall()
+
+    def get_album_tracks(self, album_id):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, name, track_number, score FROM tracks WHERE album_id = ? ORDER BY track_number",
+                           (album_id,))
+            return cursor.fetchall()
+
+    def delete_album(self, album_id):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM albums WHERE spotify_id = ?", (album_id,))
+            cursor.execute("DELETE FROM tracks WHERE album_id = ?", (album_id,))
             conn.commit()
