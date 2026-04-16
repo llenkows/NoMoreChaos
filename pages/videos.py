@@ -44,9 +44,18 @@ class VideosPage(ctk.CTkFrame):
         self.entry_ttb = ctk.CTkEntry(self.row2, placeholder_text="Time to Beat (e.g. 15h)", width=140)
         self.entry_ttb.pack(side="left", padx=(0, 10))
 
+        self.lbl_subcount = ctk.CTkLabel(self.row2, text="Auto-Create Subgames:", text_color="white",
+                                         font=("Arial", 14, "bold"))
+        self.entry_subcount = ctk.CTkEntry(self.row2, placeholder_text="e.g. 5")
+        self.entry_subcount = ctk.CTkEntry(self.row2, placeholder_text="Qty", width=60)
+        self.entry_subcount.insert(0, "0")
+        self.lbl_subdesc = ctk.CTkLabel(self.row2, text="(Generates blank templates)", text_color="#AAAAAA",
+                                        font=("Arial", 12, "italic"))
+
         self.add_btn = ctk.CTkButton(self.row2, text="+ Add Video Idea", fg_color=self.neon_green, text_color="black",
                                      hover_color=self.dark_green, font=("Arial", 14, "bold"),
                                      command=self.handle_add_video)
+        self.toggle_inputs(self.menu_type.get())
         self.add_btn.pack(side="left")
 
         # --- TABS ---
@@ -70,11 +79,16 @@ class VideosPage(ctk.CTkFrame):
         # 1. Hide everything in the row first
         self.entry_score.pack_forget()
         self.entry_ttb.pack_forget()
+        self.lbl_subcount.pack_forget()
+        self.entry_subcount.pack_forget()
+        self.lbl_subdesc.pack_forget()
         self.add_btn.pack_forget()
 
         # 2. Put them back based on the choice
         if choice == "Multi-Game":
-            # Only pack the Add button
+            self.add_btn.pack(side="left")
+            self.entry_subcount.pack(side="left", padx=(0, 10))
+            self.lbl_subdesc.pack(side="left", padx=(0, 15))
             self.add_btn.pack(side="left")
         else:
             # Pack all three in the correct order
@@ -85,6 +99,7 @@ class VideosPage(ctk.CTkFrame):
     def handle_add_video(self):
         topic = self.entry_topic.get()
         v_type = self.menu_type.get()
+        sub_count = 0
 
         if topic:
             if v_type == "Single Game":
@@ -96,8 +111,12 @@ class VideosPage(ctk.CTkFrame):
                 # Multi-Game starts with 0 score and blank TTB
                 score = 0
                 ttb = ""
+                try:
+                    sub_count = int(self.entry_subcount.get())
+                except ValueError:
+                    sub_count = 0
 
-            self.db.add_video(topic, v_type, score, ttb)
+            self.db.add_video(topic, v_type, score, ttb, subgame_count=sub_count)
             self.entry_topic.delete(0, 'end')
             self.entry_score.delete(0, 'end')
             self.entry_ttb.delete(0, 'end')
@@ -174,17 +193,36 @@ class VideosPage(ctk.CTkFrame):
         btn_no.pack(side="right", padx=(10, 25))
 
     # --- RENDER LISTS ---
+        # --- RENDER LISTS ---
     def refresh_video_lists(self):
+        # 1. Save scroll positions for BOTH lists
+        try:
+            pending_scroll = self.pending_list._parent_canvas.yview()
+        except:
+            pending_scroll = (0.0, 0.0)
+
+        try:
+            ready_scroll = self.ready_list._parent_canvas.yview()
+        except:
+            ready_scroll = (0.0, 0.0)
+
+        # 2. Clear existing widgets
         for widget in self.pending_list.winfo_children(): widget.destroy()
         for widget in self.ready_list.winfo_children(): widget.destroy()
 
+        # 3. Re-draw Pending Videos
         pending_videos = self.db.get_videos(is_ready=0)
         for vid in pending_videos:
             self.create_video_card(vid, self.pending_list)
 
+        # 4. Re-draw Ready Videos
         ready_videos = self.db.get_videos(is_ready=1)
         for vid in ready_videos:
             self.create_video_card(vid, self.ready_list)
+
+        # 5. Restore scroll positions safely!
+        self.after(50, lambda: self.pending_list._parent_canvas.yview_moveto(pending_scroll[0]))
+        self.after(50, lambda: self.ready_list._parent_canvas.yview_moveto(ready_scroll[0]))
 
     def create_video_card(self, video_data, parent_frame):
         vid_id, topic, v_type, score, ttb, is_ready, is_completed = video_data
@@ -217,6 +255,10 @@ class VideosPage(ctk.CTkFrame):
                                      hover_color="#0000CD",
                                      command=lambda v=vid_id: self.handle_move_to_ready(v))
             btn_move.pack(side="left", padx=(0, 10))
+            btn_edit_vid = ctk.CTkButton(card, text="Edit", width=60, fg_color="#333333",
+                                         command=lambda v=vid_id, t=topic, vt=v_type, sc=score,
+                                                        tb=ttb: self.open_edit_video(v, t, vt, sc, tb))
+            btn_edit_vid.pack(side="right", padx=5)
         elif is_ready == 1:
             btn_complete = ctk.CTkButton(controls, text="Complete ✓", width=100, fg_color=self.neon_green,
                                          text_color="black", hover_color=self.dark_green,
@@ -258,7 +300,83 @@ class VideosPage(ctk.CTkFrame):
                                                   command=lambda s=sub_id, v=vid_id: self.handle_subtopic_ready(s, v))
                         btn_ready.pack(side="left", padx=(0, 5))
 
+                        # NEW: The missing Edit button and pack command
+                        btn_edit_sub = ctk.CTkButton(sub_controls, text="✏️ Edit", width=60, fg_color="#333333",
+                                                     command=lambda sid=sub_id, vid=vid_id, n=name, sc=sub_score,
+                                                                    tb=sub_ttb: self.open_edit_subtopic(sid, vid, n, sc,
+                                                                                                        tb))
+                        btn_edit_sub.pack(side="left", padx=(0, 5))
+                    else:
+                        btn_unready = ctk.CTkButton(sub_controls, text="↩️ Unready", width=80, fg_color="#FF8800",
+                                                    hover_color="#CC6600",
+                                                    command=lambda sid=sub_id, vid=vid_id: self.unready_subtopic(sid,
+                                                                                                                 vid))
+                        # FIX: This pack command was missing!
+                        btn_unready.pack(side="left", padx=(0, 5))
+
                     btn_del_sub = ctk.CTkButton(sub_controls, text="X", width=30, fg_color="#FF3333",
                                                 hover_color="#990000", text_color="white",
                                                 command=lambda s=sub_id, v=vid_id: self.handle_delete_subtopic(s, v))
                     btn_del_sub.pack(side="left")
+
+    # EDIT & UNREADY LOGIC
+    def unready_subtopic(self, sub_id, video_id):
+        self.db.unready_subtopic(sub_id, video_id)
+        self.refresh_video_lists()
+
+    def open_edit_video(self, vid_id, current_topic, current_type, current_score, current_ttb):
+        edit_win = ctk.CTkToplevel(self)
+        edit_win.title("Edit Video")
+        edit_win.geometry("400x450")
+        edit_win.attributes("-topmost", True)
+
+        ctk.CTkLabel(edit_win, text="Topic:").pack(pady=(10, 0))
+        topic_ent = ctk.CTkEntry(edit_win, width=300)
+        topic_ent.pack()
+        topic_ent.insert(0, current_topic)
+
+        ctk.CTkLabel(edit_win, text="Score (1-10):").pack(pady=(10, 0))
+        score_ent = ctk.CTkEntry(edit_win, width=300)
+        score_ent.pack()
+        score_ent.insert(0, str(current_score))
+
+        ctk.CTkLabel(edit_win, text="Time to Beat:").pack(pady=(10, 0))
+        ttb_ent = ctk.CTkEntry(edit_win, width=300)
+        ttb_ent.pack()
+        ttb_ent.insert(0, current_ttb)
+
+        def save_edits():
+            self.db.update_video_details(vid_id, topic_ent.get(), current_type, int(score_ent.get() or 0), ttb_ent.get())
+            edit_win.destroy()
+            self.refresh_video_lists()
+
+        ctk.CTkButton(edit_win, text="Save Changes", fg_color=self.neon_green, text_color="black", command=save_edits).pack(pady=20)
+
+    def open_edit_subtopic(self, sub_id, video_id, current_name, current_score, current_ttb):
+        edit_win = ctk.CTkToplevel(self)
+        edit_win.title("Edit Subgame")
+        edit_win.geometry("400x400")
+        edit_win.attributes("-topmost", True)
+
+        ctk.CTkLabel(edit_win, text="Subgame Name:").pack(pady=(10, 0))
+        name_ent = ctk.CTkEntry(edit_win, width=300)
+        name_ent.pack()
+        name_ent.insert(0, current_name)
+
+        ctk.CTkLabel(edit_win, text="Score (1-10):").pack(pady=(10, 0))
+        score_ent = ctk.CTkEntry(edit_win, width=300)
+        score_ent.pack()
+        score_ent.insert(0, str(current_score))
+
+        ctk.CTkLabel(edit_win, text="Time to Beat:").pack(pady=(10, 0))
+        ttb_ent = ctk.CTkEntry(edit_win, width=300)
+        ttb_ent.pack()
+        ttb_ent.insert(0, current_ttb)
+
+        def save_edits():
+            self.db.update_subtopic_details(sub_id, name_ent.get(), int(score_ent.get() or 0), ttb_ent.get())
+            self.db.sync_parent_multi_game(video_id) # Syncs the new max score to the parent!
+            edit_win.destroy()
+            self.refresh_video_lists()
+
+        ctk.CTkButton(edit_win, text="Save Subgame", fg_color=self.neon_green, text_color="black", command=save_edits).pack(pady=20)

@@ -130,24 +130,20 @@ class ChaosApp(ctk.CTk):
                     g_id, league, home, away, start_utc, notified = game
                     game_time = parser.isoparse(start_utc)
 
-                    # Calculate time difference
-                    time_diff = game_time - now_utc
+                    time_diff = (game_time - now_utc).total_seconds()
 
-                    # If game starts in 15 minutes or less (and hasn't already started hours ago)
-                    if timedelta(minutes=0) < time_diff <= timedelta(minutes=15):
-                        # Send Desktop Notification
+                    # If game starts in exactly 15 minutes (900 seconds) or less, and hasn't started yet
+                    if 0 < time_diff <= 900:
                         notification.notify(
                             title=f"{league} Alert: Game Starting!",
                             message=f"{away} @ {home} starts in 15 minutes.",
                             app_name="No More Chaos",
                             timeout=10
                         )
-                        # Mark as notified so it doesn't spam
                         self.db.mark_game_notified(g_id)
             except Exception as e:
                 print(f"Notification Engine Error: {e}")
 
-            # Sleep for 60 seconds before checking again
             time.sleep(60)
 
     # ==========================================

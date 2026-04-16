@@ -164,12 +164,19 @@ class DatabaseManager:
             conn.commit()
 
     # --- VIDEO FUNCTIONS ---
-    def add_video(self, topic, v_type, score, ttb):
+    def add_video(self, topic, v_type, score, ttb, subgame_count=0):
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute(
                 "INSERT INTO videos (topic, type, strength_score, time_to_beat, is_ready, is_completed) VALUES (?, ?, ?, ?, 0, 0)",
                 (topic, v_type, score, ttb))
+            video_id = cursor.lastrowid
+            # Auto-generate templates
+            if v_type == 'Multi-Game' and subgame_count > 0:
+                for i in range(subgame_count):
+                    cursor.execute(
+                        "INSERT INTO subtopics (video_id, game_name, strength_score, time_to_beat, is_ready) VALUES (?, ?, 0, '', 0)",
+                        (video_id, f"Subgame {i + 1} (Edit Me)"))
             conn.commit()
 
     def get_videos(self, is_ready=0):
@@ -184,11 +191,11 @@ class DatabaseManager:
             cursor.execute("UPDATE videos SET is_ready = ? WHERE id = ?", (is_ready, video_id))
             conn.commit()
 
-    def update_video_details(self, video_id, topic, v_type, score, ttb):
+    def update_video_details(self, vid_id, topic, v_type, score, ttb):
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("UPDATE videos SET topic = ?, type = ?, strength_score = ?, time_to_beat = ? WHERE id = ?",
-                           (topic, v_type, score, ttb, video_id))
+                           (topic, v_type, score, ttb, vid_id))
             conn.commit()
 
     def delete_video(self, video_id):
@@ -222,6 +229,20 @@ class DatabaseManager:
             cursor.execute("UPDATE subtopics SET is_ready = 1 WHERE id = ?", (sub_id,))
             conn.commit()
         self.sync_parent_multi_game(video_id)  # Check if all are ready
+
+    def unready_subtopic(self, sub_id, video_id):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE subtopics SET is_ready = 0 WHERE id = ?", (sub_id,))
+            conn.commit()
+        self.sync_parent_multi_game(video_id)
+
+    def update_subtopic_details(self, sub_id, game_name, score, ttb):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE subtopics SET game_name = ?, strength_score = ?, time_to_beat = ? WHERE id = ?",
+                           (game_name, score, ttb, sub_id))
+            conn.commit()
 
     def delete_subtopic(self, sub_id, video_id):
         with sqlite3.connect(self.db_path) as conn:

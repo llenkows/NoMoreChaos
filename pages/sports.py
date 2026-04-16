@@ -2,7 +2,7 @@ import customtkinter as ctk
 import requests
 import threading
 from dateutil import parser
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 class SportsPage(ctk.CTkFrame):
     def __init__(self, parent, db_manager, **kwargs):
@@ -31,6 +31,11 @@ class SportsPage(ctk.CTkFrame):
                                       command=self.start_sync_thread)
 
         self.btn_sync.pack(side="left", padx=10)
+
+        btn_test = ctk.CTkButton(sync_frame, text="🔧 Test Alert (2 Mins)", fg_color="#333333",
+                                 command=self.create_test_game)
+
+        btn_test.pack(side="right", padx=10)
 
         self.lbl_status = ctk.CTkLabel(sync_frame, text="Click to fetch the latest schedules.", text_color="#AAAAAA")
         self.lbl_status.pack(side="left", padx=15)
@@ -143,4 +148,18 @@ class SportsPage(ctk.CTkFrame):
 
     def finish_sync_ui(self):
         self.btn_sync.configure(state="normal", text="Sync ESPN Schedule (7 Days)")
+        self.refresh_schedule_list()
+
+    def create_test_game(self):
+        # Creates a dummy game 2 minutes from now to test notifications
+        now_utc = datetime.now(timezone.utc)
+        test_time = now_utc + timedelta(minutes=2)
+
+        self.db.save_sports_game(
+            game_id="DEBUG_" + str(int(now_utc.timestamp())),
+            league="TEST",
+            home_team="Debug Home",
+            away_team="Debug Away",
+            start_time=test_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+        )
         self.refresh_schedule_list()
