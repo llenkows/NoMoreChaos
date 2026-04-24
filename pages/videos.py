@@ -16,8 +16,15 @@ class VideosPage(ctk.CTkFrame):
         self.build_ui()
 
     def build_ui(self):
-        title = ctk.CTkLabel(self, text="Video Ideas", font=("Arial", 28, "bold"), text_color="white")
-        title.pack(anchor="w", pady=(0, 10))
+        header_frame = ctk.CTkFrame(self, fg_color="transparent")
+        header_frame.pack(fill="x", pady=(0, 10))
+
+        title = ctk.CTkLabel(header_frame, text="Video Ideas", font=("Arial", 28, "bold"), text_color="white")
+        title.pack(side="left")
+
+        btn_random = ctk.CTkButton(header_frame, text="🎲 Random Idea", fg_color="#333333", hover_color="#555555",
+                                   font=("Arial", 14, "bold"), command=self.show_random_idea)
+        btn_random.pack(side="right", padx=10)
 
         # --- ADD VIDEO FORM ---
         form_frame = ctk.CTkFrame(self, fg_color=self.card_color, corner_radius=10)
@@ -228,7 +235,6 @@ class VideosPage(ctk.CTkFrame):
         vid_id, topic, v_type, score, ttb, is_ready, is_completed = video_data
 
         card = ctk.CTkFrame(parent_frame, fg_color=self.card_color, corner_radius=10)
-        card.pack(fill="x", pady=5)
 
         # Header Row
         header = ctk.CTkFrame(card, fg_color="transparent")
@@ -318,6 +324,7 @@ class VideosPage(ctk.CTkFrame):
                                                 hover_color="#990000", text_color="white",
                                                 command=lambda s=sub_id, v=vid_id: self.handle_delete_subtopic(s, v))
                     btn_del_sub.pack(side="left")
+        card.pack(fill="x", pady=5)
 
     # EDIT & UNREADY LOGIC
     def unready_subtopic(self, sub_id, video_id):
@@ -380,3 +387,23 @@ class VideosPage(ctk.CTkFrame):
             self.refresh_video_lists()
 
         ctk.CTkButton(edit_win, text="Save Subgame", fg_color=self.neon_green, text_color="black", command=save_edits).pack(pady=20)
+
+    def show_random_idea(self):
+        video = self.db.get_random_pending_video()
+        if not video:
+            return  # Fails silently if your backlog is totally empty!
+
+        topic, subtitle = video
+
+        popup = ctk.CTkToplevel(self)
+        popup.title("Random Idea")
+        popup.geometry("350x150")  # Made slightly smaller for a tighter, cleaner look
+        popup.attributes("-topmost", True)
+
+        # Use the card color to perfectly match the screenshot's dark background
+        popup.configure(fg_color=self.card_color)
+
+        ctk.CTkLabel(popup, text="🎥 Focus Topic", font=("Arial", 14, "bold"), text_color="#AAAAAA").pack(pady=(20, 5))
+        ctk.CTkLabel(popup, text=topic, font=("Arial", 22, "bold"), text_color=self.neon_green, wraplength=320).pack(
+            pady=(0, 5))
+        ctk.CTkLabel(popup, text=subtitle, font=("Arial", 16), text_color="white").pack(pady=(0, 20))

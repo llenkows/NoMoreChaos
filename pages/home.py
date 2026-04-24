@@ -12,6 +12,7 @@ class HomePage(ctk.CTkFrame):
         self.bg_color = "#000000"
         self.card_color = "#121212"
         self.neon_green = "#39FF14"
+        self.dark_green = "#2ce00f"
         self.warning_red = "#FF3333"
 
         self.build_ui()
@@ -91,15 +92,19 @@ class HomePage(ctk.CTkFrame):
         album = self.db.get_dashboard_album()
         music_card = ctk.CTkFrame(right_column, fg_color=self.card_color, corner_radius=10)
         music_card.pack(fill="both", expand=True, pady=(0, 10))
-
         ctk.CTkLabel(music_card, text="🎵 Listen to this", font=("Arial", 14, "bold"), text_color="#AAAAAA").pack(
             pady=(10, 5))
         if album:
-            title_text, artist, img_url = album
+            album_id, title_text, artist, img_url = album
             self.load_image(music_card, img_url, size=(120, 120))
             ctk.CTkLabel(music_card, text=title_text, font=("Arial", 18, "bold"), text_color=self.neon_green,
                          wraplength=300).pack(pady=(10, 0))
             ctk.CTkLabel(music_card, text=f"by {artist}", font=("Arial", 14), text_color="white").pack()
+            btn_rate = ctk.CTkButton(music_card, text="Rate This Album ➔", fg_color=self.neon_green,
+                                     text_color="black",
+                                     hover_color=self.dark_green, font=("Arial", 14, "bold"),
+                                     command=lambda a=album: self.winfo_toplevel().show_page('music', auto_rate_album=album))
+            btn_rate.pack(pady=(15, 0))
         else:
             ctk.CTkLabel(music_card, text="Queue is empty.", font=("Arial", 16), text_color="white").pack(pady=20)
 

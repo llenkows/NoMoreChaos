@@ -270,6 +270,28 @@ class DatabaseManager:
                                (max_score, is_ready, video_id))
             conn.commit()
 
+    def get_random_pending_video(self):
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+
+            # Fetch all unready videos in a random order
+            cursor.execute("SELECT id, topic, type FROM videos WHERE is_ready = 0 ORDER BY RANDOM()")
+            videos = cursor.fetchall()
+
+            for vid in videos:
+                if vid[2] == 'Single Game':
+                    return (vid[1], "Single Game")
+                elif vid[2] == 'Multi-Game':
+                    # If it's a multi-game, pick ONE random unready subgame
+                    cursor.execute(
+                        "SELECT game_name FROM subtopics WHERE video_id = ? AND is_ready = 0 ORDER BY RANDOM() LIMIT 1",
+                        (vid[0],))
+                    sub = cursor.fetchone()
+                    if sub:
+                        return (vid[1], f"Subgame: {sub[0]}")
+
+            return None  # Fails safely if absolutely nothing is pending
+
     # MUSIC FUNCTIONS
     def add_to_queue(self, spotify_id, artist, title, img_url):
         with sqlite3.connect(self.db_path) as conn:
@@ -480,7 +502,7 @@ class DatabaseManager:
 
             # Check if sticky album still exists in queue
             if self.dash_album_id:
-                cursor.execute("SELECT title, artist, img_url FROM queued_albums WHERE spotify_id = ?",
+                cursor.execute("SELECT spotify_id, title, artist, img_url FROM queued_albums WHERE spotify_id = ?",
                                (self.dash_album_id,))
                 alb = cursor.fetchone()
                 if alb:
@@ -493,7 +515,7 @@ class DatabaseManager:
             if not alb: return None
 
             self.dash_album_id = alb[0]
-            return (alb[1], alb[2], alb[3])
+            return alb
 
     def get_dashboard_movie(self):
         self.check_dash_date()

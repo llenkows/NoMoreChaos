@@ -58,12 +58,12 @@ class ChaosApp(ctk.CTk):
         self.logo.pack(pady=30)
 
         # Sidebar Buttons (Notice the commands!)
-        self.btn_home = self.create_nav_btn("Home", command=self.show_home_page)
-        self.btn_jobs = self.create_nav_btn("Job Applications", command=self.show_jobs_page)
-        self.btn_videos = self.create_nav_btn("Video Ideas", command=self.show_videos_page)
-        self.btn_music = self.create_nav_btn("Music", command=self.show_music_page)
-        self.btn_movies = self.create_nav_btn("Movies", command=self.show_movies_page)
-        self.btn_sports = self.create_nav_btn("Sports", command=self.show_sports_page)
+        self.btn_home = self.create_nav_btn("Home", command=lambda:self.show_page('home'))
+        self.btn_jobs = self.create_nav_btn("Job Applications", command=lambda:self.show_page('jobs'))
+        self.btn_videos = self.create_nav_btn("Video Ideas", command=lambda:self.show_page('videos'))
+        self.btn_music = self.create_nav_btn("Music", command=lambda:self.show_page('music'))
+        self.btn_movies = self.create_nav_btn("Movies", command=lambda:self.show_page('movies'))
+        self.btn_sports = self.create_nav_btn("Sports", command=lambda:self.show_page('sports'))
 
         # --- MAIN CONTENT AREA ---
         self.main_content = ctk.CTkFrame(self, fg_color="transparent")
@@ -72,8 +72,17 @@ class ChaosApp(ctk.CTk):
         # Track current page widget to destroy it when switching pages
         self.current_page = None
 
+        self.pages = {}
+        self.pages['home'] = HomePage(self.main_content, self.db)
+        self.pages['jobs'] = JobsPage(self.main_content, self.db)
+        self.pages['videos'] = VideosPage(self.main_content, self.db)
+        self.pages['music'] = MusicPage(self.main_content, self.db)
+        self.pages['movies'] = MoviesPage(self.main_content, self.db)
+        self.pages['sports'] = SportsPage(self.main_content, self.db)
+
+
         # Load default page
-        self.show_home_page()
+        self.show_page('home')
 
         # --- START SPORTS NOTIFICATION ENGINE ---
         threading.Thread(target=self.sports_notification_worker, daemon=True).start()
@@ -89,35 +98,33 @@ class ChaosApp(ctk.CTk):
         if self.current_page is not None:
             self.current_page.destroy()
 
-    def show_home_page(self):
-        self.clear_main_content()
-        self.current_page = HomePage(self.main_content, self.db)
-        self.current_page.pack(fill="both", expand=True)
+    def show_page(self, page_name, **kwargs):
+        # 1. Hide all pages
+        for page in self.pages.values():
+            if page.winfo_ismapped():
+                page.pack_forget()
 
-    def show_jobs_page(self):
-        self.clear_main_content()
-        self.current_page = JobsPage(self.main_content, self.db)
-        self.current_page.pack(fill="both", expand=True)
+        # 2. Force Tkinter to instantly clear the screen before doing heavy math!
+        self.update_idletasks()
 
-    def show_videos_page(self):
-        self.clear_main_content()
-        self.current_page = VideosPage(self.main_content, self.db)
-        self.current_page.pack(fill="both", expand=True)
+        # 3. Get the requested page
+        page_to_show = self.pages[page_name]
 
-    def show_music_page(self):
-        self.clear_main_content()
-        self.current_page = MusicPage(self.main_content, self.db)
-        self.current_page.pack(fill="both", expand=True)
+        # 4. Show the new page empty first, so Tkinter knows its physical boundaries
+        page_to_show.pack(fill="both", expand=True)
 
-    def show_movies_page(self):
-        self.clear_main_content()
-        self.current_page = MoviesPage(self.main_content, self.db)
-        self.current_page.pack(fill="both", expand=True)
+        # 5. Handle dashboard album routing
+        if page_name == 'music' and 'auto_rate_album' in kwargs:
+            page_to_show.trigger_dashboard_rating(kwargs['auto_rate_album'])
 
-    def show_sports_page(self):
-        self.clear_main_content()
-        self.current_page = SportsPage(self.main_content, self.db)
-        self.current_page.pack(fill="both", expand=True)
+        # 6. Delay the heavy data refresh by 50ms so the UI finishes drawing the blank page first
+        if hasattr(page_to_show, 'refresh_saved_list'):
+            self.after(300, page_to_show.refresh_saved_list)
+
+    def show_music_page(self, auto_rate_album=None):
+        self.show_page('music')
+        if auto_rate_album:
+            self.pages['music'].trigger_dashboard_rating(auto_rate_album)
 
     # --- NOTIFICATION ENGINE ---
     def sports_notification_worker(self):
@@ -205,6 +212,12 @@ class ChaosApp(ctk.CTk):
 
         print("Shutting down No More Chaos.")
         self.destroy()
+
+    def show_music_page(self, auto_rate_album=None):
+        self.clear_main_content()
+        # Pass the auto_rate_album variable into the page when we create it
+        self.current_page = MusicPage(self.main_content, self.db, auto_rate_album=auto_rate_album)
+        self.current_page.pack(fill="both", expand=True)
 
 if __name__ == "__main__":
     app = ChaosApp()

@@ -6,13 +6,14 @@ import math
 import requests
 from io import BytesIO
 from PIL import Image
+import threading
 
 SPOTIPY_CLIENT_ID = os.getenv('SPOTIPY_CLIENT_ID')
 SPOTIPY_CLIENT_SECRET = os.getenv('SPOTIPY_CLIENT_SECRET')
 
 
 class MusicPage(ctk.CTkFrame):
-    def __init__(self, parent, db_manager, **kwargs):
+    def __init__(self, parent, db_manager, auto_rate_album=None, **kwargs):
         super().__init__(parent, fg_color="transparent", **kwargs)
         self.db = db_manager
 
@@ -28,6 +29,10 @@ class MusicPage(ctk.CTkFrame):
         self.track_items = []
 
         self.build_ui()
+        # Catch the dashboard album and open the popup automatically
+        if auto_rate_album:
+            # delay the popup by 300ms so the UI finishes drawing first
+            self.after(300, lambda: self.trigger_dashboard_rating(auto_rate_album))
 
     def build_ui(self):
         title = ctk.CTkLabel(self, text="Music Rater", font=("Arial", 28, "bold"), text_color="white")
@@ -78,12 +83,13 @@ class MusicPage(ctk.CTkFrame):
             row = ctk.CTkFrame(self.results_frame, fg_color="transparent")
             row.pack(fill="x", pady=5, padx=5)
 
+            # Create a blank placeholder label first so the UI instantly draws
+            lbl_img = ctk.CTkLabel(row, text="", width=50, height=50)
+            lbl_img.pack(side="left", padx=(0, 15))
+
+            # Send the download task to the background
             if img_url:
-                img_data = requests.get(img_url).content
-                img_item = Image.open(BytesIO(img_data))
-                ctk_img = ctk.CTkImage(light_image=img_item, dark_image=img_item, size=(50, 50))
-                lbl_img = ctk.CTkLabel(row, text="", image=ctk_img)
-                lbl_img.pack(side="left", padx=(0, 15))
+                self.load_image_async(lbl_img, img_url, size=(50, 50))
 
             lbl_info = ctk.CTkLabel(row, text=f"{name}\nby {artist}", font=("Arial", 14), justify="left")
             lbl_info.pack(side="left", pady=10)
@@ -143,11 +149,12 @@ class MusicPage(ctk.CTkFrame):
 
         for widget in self.rating_frame.winfo_children(): widget.destroy()
 
+        # Create the large placeholder label
+        lbl_large_img = ctk.CTkLabel(self.rating_frame, text="", width=150, height=150)
+        lbl_large_img.pack(pady=10)
+
         if img_url:
-            img_data = requests.get(img_url).content
-            img_item = Image.open(BytesIO(img_data))
-            large_ctk_img = ctk.CTkImage(light_image=img_item, dark_image=img_item, size=(150, 150))
-            ctk.CTkLabel(self.rating_frame, text="", image=large_ctk_img).pack(pady=10)
+            self.load_image_async(lbl_large_img, img_url, size=(150, 150))
 
         ctk.CTkLabel(self.rating_frame, text=f"{name}\n{artist}", font=("Arial", 22, "bold"),
                      text_color=self.neon_green).pack(pady=5)
@@ -242,13 +249,12 @@ class MusicPage(ctk.CTkFrame):
             card = ctk.CTkFrame(self.saved_list, fg_color=self.card_color, corner_radius=10)
             card.pack(fill="x", pady=5)
 
-            # Cover Art
+            # Cover Art Placeholder
+            lbl_img = ctk.CTkLabel(card, text="", width=60, height=60)
+            lbl_img.pack(side="left", padx=(10, 5), pady=10)
+
             if img_url:
-                img_data = requests.get(img_url).content
-                img_item = Image.open(BytesIO(img_data))
-                ctk_img = ctk.CTkImage(light_image=img_item, dark_image=img_item, size=(60, 60))
-                lbl_img = ctk.CTkLabel(card, text="", image=ctk_img)
-                lbl_img.pack(side="left", padx=(10, 5), pady=10)
+                self.load_image_async(lbl_img, img_url, size=(60, 60))
 
             # Details
             lbl_info = ctk.CTkLabel(card, text=f"[{score}/10] {title}\nby {artist}", font=("Arial", 16, "bold"),
@@ -341,3 +347,37 @@ class MusicPage(ctk.CTkFrame):
         btn_save = ctk.CTkButton(popup, text="Save Updates", fg_color=self.neon_green, text_color="black",
                                  hover_color=self.dark_green, font=("Arial", 14, "bold"), command=save_edits)
         btn_save.pack(pady=15)
+
+    def trigger_dashboard_rating(self, album_data):
+        try:
+            # Safely unpack the tuple your database returned
+            album_id = album_data[0]
+            album_name = album_data[1]
+            artist = album_data[2]
+            art_url = album_data[3] if len(album_data) > 3 else ""
+
+            # Switch the view to the Queue tab so you can see the rating screen
+            self.tabs.set("Queued Albums")
+
+            # Call the correct function that loads the album tracks into the frame
+            self.after(200, lambda:self.load_album_for_rating(album_id, album_name, artist, art_url))
+
+        except Exception as e:
+            print(f"Could not auto-open rating popup: {e}")
+
+    def load_image_async(self, label_widget, url, size):
+        # Sets a placeholder
+        label_widget.configure(text="Loading...")
+
+        def fetch_and_update():
+            try:
+                img_data = requests.get(url).content
+                img_item = Image.open(BytesIO(img_data))
+                ctk_img = ctk.CTkImage(light_image=img_item, dark_image=img_item, size=size)
+                # Safely tell the main thread to update the image
+                self.after(0, lambda: label_widget.configure(image=ctk_img, text=""))
+            except:
+                self.after(0, lambda: label_widget.configure(text="No Art"))
+
+        # Run the download in the background
+        threading.Thread(target=fetch_and_update, daemon=True).start()
