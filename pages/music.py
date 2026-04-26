@@ -116,7 +116,7 @@ class MusicPage(ctk.CTkFrame):
         self.rating_frame = ctk.CTkScrollableFrame(content_frame, fg_color=self.card_color)
         self.rating_frame.pack(side="left", fill="both", expand=True)
 
-        self.refresh_queue_list()
+        self.after(100, self.refresh_queue_list())
 
     def refresh_queue_list(self):
         for widget in self.queue_list_frame.winfo_children(): widget.destroy()
@@ -238,7 +238,7 @@ class MusicPage(ctk.CTkFrame):
     def build_saved_tab(self):
         self.saved_list = ctk.CTkScrollableFrame(self.tab_saved, fg_color="transparent")
         self.saved_list.pack(fill="both", expand=True)
-        self.refresh_saved_list()
+        self.after(100, self.refresh_saved_list)
 
     def refresh_saved_list(self):
         for widget in self.saved_list.winfo_children(): widget.destroy()

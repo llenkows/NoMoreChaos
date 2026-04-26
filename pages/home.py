@@ -1,5 +1,6 @@
 import customtkinter as ctk
 import requests
+import threading
 from io import BytesIO
 from PIL import Image
 from dateutil import parser
@@ -24,15 +25,22 @@ class HomePage(ctk.CTkFrame):
         content_frame = ctk.CTkFrame(self, fg_color="transparent")
         content_frame.pack(fill="both", expand=True)
 
-        left_column = ctk.CTkFrame(content_frame, fg_color="transparent")
-        left_column.pack(side="left", fill="both", expand=True, padx=(0, 10))
+        self.left_column = ctk.CTkFrame(content_frame, fg_color="transparent")
+        self.left_column.pack(side="left", fill="both", expand=True, padx=(0, 10))
 
-        right_column = ctk.CTkFrame(content_frame, fg_color="transparent")
-        right_column.pack(side="right", fill="both", expand=True, padx=(10, 0))
+        self.right_column = ctk.CTkFrame(content_frame, fg_color="transparent")
+        self.right_column.pack(side="right", fill="both", expand=True, padx=(10, 0))
+
+        self.after(100, self.refresh_dashboard())
+
+    def refresh_dashboard(self):
+        # Clear old data cards
+        for widget in self.left_column.winfo_children(): widget.destroy()
+        for widget in self.right_column.winfo_children(): widget.destroy()
 
         # JOBS REMINDER
         jobs_today = self.db.get_jobs_count_today()
-        job_card = ctk.CTkFrame(left_column, fg_color=self.card_color, corner_radius=10)
+        job_card = ctk.CTkFrame(self.left_column, fg_color=self.card_color, corner_radius=10)
         job_card.pack(fill="x", pady=(0, 20), ipady=15)
 
         ctk.CTkLabel(job_card, text="💼 Job Applications", font=("Arial", 14, "bold"), text_color="#AAAAAA").pack(
@@ -46,7 +54,7 @@ class HomePage(ctk.CTkFrame):
 
         # RANDOM VIDEO
         video = self.db.get_dashboard_video()
-        vid_card = ctk.CTkFrame(left_column, fg_color=self.card_color, corner_radius=10)
+        vid_card = ctk.CTkFrame(self.left_column, fg_color=self.card_color, corner_radius=10)
         vid_card.pack(fill="x", pady=(0, 20), ipady=15)
 
         ctk.CTkLabel(vid_card, text="🎥 Focus Topic", font=("Arial", 14, "bold"), text_color="#AAAAAA").pack(
@@ -61,7 +69,7 @@ class HomePage(ctk.CTkFrame):
                          text_color="white").pack()
 
         # TODAY'S SPORTS
-        sports_card = ctk.CTkFrame(left_column, fg_color=self.card_color, corner_radius=10)
+        sports_card = ctk.CTkFrame(self.left_column, fg_color=self.card_color, corner_radius=10)
         sports_card.pack(fill="x", pady=(0, 20), ipady=10)
 
         ctk.CTkLabel(sports_card, text="🏀 Today's Games", font=("Arial", 14, "bold"), text_color="#AAAAAA").pack(
@@ -90,7 +98,7 @@ class HomePage(ctk.CTkFrame):
 
         # RANDOM ALBUM
         album = self.db.get_dashboard_album()
-        music_card = ctk.CTkFrame(right_column, fg_color=self.card_color, corner_radius=10)
+        music_card = ctk.CTkFrame(self.right_column, fg_color=self.card_color, corner_radius=10)
         music_card.pack(fill="both", expand=True, pady=(0, 10))
         ctk.CTkLabel(music_card, text="🎵 Listen to this", font=("Arial", 14, "bold"), text_color="#AAAAAA").pack(
             pady=(10, 5))
@@ -110,7 +118,7 @@ class HomePage(ctk.CTkFrame):
 
         # RANDOM MOVIE
         movie = self.db.get_dashboard_movie()
-        movie_card = ctk.CTkFrame(right_column, fg_color=self.card_color, corner_radius=10)
+        movie_card = ctk.CTkFrame(self.right_column, fg_color=self.card_color, corner_radius=10)
         movie_card.pack(fill="both", expand=True, pady=(10, 0))
 
         ctk.CTkLabel(movie_card, text="🍿 Watch this", font=("Arial", 14, "bold"), text_color="#AAAAAA").pack(
@@ -126,11 +134,19 @@ class HomePage(ctk.CTkFrame):
 
 
     def load_image(self, parent, url, size):
+        lbl_img = ctk.CTkLabel(parent, text="", width=size[0], height=size[1])
+        lbl_img.pack(pady=5)
+
         if url:
-            try:
-                img_data = requests.get(url).content
-                img_item = Image.open(BytesIO(img_data))
-                ctk_img = ctk.CTkImage(light_image=img_item, dark_image=img_item, size=size)
-                ctk.CTkLabel(parent, text="", image=ctk_img).pack(pady=5)
-            except:
-                ctk.CTkLabel(parent, text="[Image Unavailable]", text_color="#555555").pack(pady=5)
+            lbl_img.configure(text="Loading...")
+
+            def fetch_and_update():
+                try:
+                    img_data = requests.get(url).content
+                    img_item = Image.open(BytesIO(img_data))
+                    ctk_img = ctk.CTkImage(light_image=img_item, dark_image=img_item, size=size)
+                    self.after(0, lambda: lbl_img.configure(image=ctk_img, text=""))
+                except:
+                    self.after(0, lambda: lbl_img.configure(text="[No Image]"))
+
+            threading.Thread(target=fetch_and_update, daemon=True).start()

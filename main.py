@@ -120,6 +120,8 @@ class ChaosApp(ctk.CTk):
         # 6. Delay the heavy data refresh by 50ms so the UI finishes drawing the blank page first
         if hasattr(page_to_show, 'refresh_saved_list'):
             self.after(300, page_to_show.refresh_saved_list)
+        elif hasattr(page_to_show, 'refresh_dashboard'):
+            self.after(50, page_to_show.refresh_dashboard)
 
     def show_music_page(self, auto_rate_album=None):
         self.show_page('music')
